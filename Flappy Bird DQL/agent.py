@@ -40,6 +40,7 @@ class Agent:
         self.stop_on_reward = hyperparameters["stop_on_reward"]
         self.fc1_nodes = hyperparameters["fc1_nodes"]
         self.env_make_params = hyperparameters.get("env_make_params", {})
+        self.enable_double_dqn = hyperparameters["enable_double_dqn"]
 
         self.loss_fn = torch.nn.MSELoss()
         self.optimizer = None
@@ -66,13 +67,16 @@ class Agent:
         num_actions = env.action_space.n
         rewards_per_episode = []
         epsilon_history = []
-        policy_dqn = DQN(num_states, num_actions, self.fc1_nodes).to(device)
+        
+        # Pass enable_double_dqn to DQN constructor
+        policy_dqn = DQN(num_states, num_actions, self.fc1_nodes, self.enable_double_dqn).to(device)
 
         if is_training:
             memory = ReplayMemory(self.replay_memory_size)
 
             epsilon = self.epsilon_init
-            target_dqn = DQN(num_states, num_actions, self.fc1_nodes).to(device)    
+            # Pass enable_double_dqn to target DQN constructor as well
+            target_dqn = DQN(num_states, num_actions, self.fc1_nodes, self.enable_double_dqn).to(device)    
             target_dqn.load_state_dict(policy_dqn.state_dict())
             step_count = 0
             self.optimizer = torch.optim.Adam(policy_dqn.parameters(), lr=self.learning_rate_a)
@@ -111,6 +115,7 @@ class Agent:
                 state = new_state
 
             rewards_per_episode.append(episode_reward)
+            
             if is_training:
                 if episode_reward > best_reward:
                     log_message = f"{datetime.now().strftime(DATE_FORMAT)}: New best reward {episode_reward:0.1f} (best: {episode_reward - best_reward:0.1f})"
@@ -125,21 +130,20 @@ class Agent:
                     self.save_graph(rewards_per_episode, epsilon_history)
                     last_graph_update_time = current_time
 
-            
+                if len(memory) > self.mini_batch_size:
+                    mini_batch = memory.sample(self.mini_batch_size)    
+                    self.optimize(mini_batch, policy_dqn, target_dqn)
 
-            if len(memory) > self.mini_batch_size:
-                mini_batch = memory.sample(self.mini_batch_size)    
-                self.optimize(mini_batch, policy_dqn, target_dqn)
-
-                epsilon = max(epsilon * self.epsilon_decay, self.epsilon_min)
-                epsilon_history.append(epsilon)
-                 
-                if step_count > self.network_sync_rate:
-                    target_dqn.load_state_dict(policy_dqn.state_dict())
-                    step_count = 0
-
-            epsilon = max(epsilon * self.epsilon_decay, self.epsilon_min)
-            epsilon_history.append(epsilon)
+                    # Update epsilon here (only once per episode)
+                    epsilon = max(epsilon * self.epsilon_decay, self.epsilon_min)
+                    epsilon_history.append(epsilon)
+                     
+                    if step_count > self.network_sync_rate:
+                        target_dqn.load_state_dict(policy_dqn.state_dict())
+                        step_count = 0
+                else:
+                    # Still record epsilon even if we don't have enough samples
+                    epsilon_history.append(epsilon)
     
     def save_graph(self, rewards_per_episode, epsilon_history):
         fig = plt.figure()
@@ -168,18 +172,20 @@ class Agent:
         terminations = torch.tensor(terminations).float().to(device)
 
         with torch.no_grad():
-            target_q = rewards + (1 - terminations) * self.discount_factor_g * target_dqn(new_states).max(dim=1)[0]
+            if self.enable_double_dqn:
+                # Fix the target q-value calculation for double DQN
+                best_actions_from_policy = policy_dqn(new_states).argmax(dim=1)
+                # Corrected indexing for gathering values from target network
+                target_q = rewards + (1 - terminations) * self.discount_factor_g * target_dqn(new_states).gather(1, best_actions_from_policy.unsqueeze(dim=1)).squeeze()
+            else:
+                target_q = rewards + (1 - terminations) * self.discount_factor_g * target_dqn(new_states).max(dim=1)[0]
         
-        current_q = policy_dqn(states).gather(1, index=actions.unsqueeze(dim=1 )).squeeze()
+        current_q = policy_dqn(states).gather(1, index=actions.unsqueeze(dim=1)).squeeze()
 
         loss = self.loss_fn(current_q, target_q)
         self.optimizer.zero_grad()
         loss.backward() 
         self.optimizer.step()
-
-        
-
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Train or test model")
