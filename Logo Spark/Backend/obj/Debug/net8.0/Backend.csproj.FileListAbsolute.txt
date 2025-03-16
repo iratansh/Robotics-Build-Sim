@@ -1,8 +1,0 @@
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.csproj.AssemblyReference.cache
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.GeneratedMSBuildEditorConfig.editorconfig
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.AssemblyInfoInputs.cache
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.AssemblyInfo.cs
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.csproj.CoreCompileInputs.cache
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.MvcApplicationPartsAssemblyInfo.cs
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.MvcApplicationPartsAssemblyInfo.cache
-/Users/ishaanratanshi/Logo Spark/Backend/obj/Debug/net8.0/Backend.sourcelink.json
